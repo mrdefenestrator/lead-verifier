@@ -18,7 +18,16 @@ def getch():
     return ch
 
 
-def prompt_rec(prompt: str, options=('y','n')):
+def prompt_for_line(prompt: str) -> str:
+    """Prompt for a line of input and return the value once entered
+    """
+    value = input(prompt)
+    if len(value) == 0:
+        return prompt_for_line(prompt)
+    return value
+
+
+def prompt_for_char(prompt: str, options=('y','n')) -> str:
     """Prompt for a single character of input and return the value once entered
     """
     sys.stdout.write(f"{prompt} ({'/'.join(options)}): ")
@@ -27,7 +36,7 @@ def prompt_rec(prompt: str, options=('y','n')):
     sys.stdout.write(f"{value}\n")
 
     if value not in options:
-        return prompt_rec(prompt, options)
+        return prompt_for_char(prompt, options)
 
     return value
 
@@ -52,11 +61,10 @@ def write_csv(file_path, out_header, out_rows):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Please give the path of the csv file to verify")
-        sys.exit(1)
-
-    file_path = sys.argv[1]
+    if len(sys.argv) > 1:
+        file_path = sys.argv[1]
+    else:
+        file_path = prompt_for_line("Please give the path of the csv file to verify: ")
 
     in_header, in_rows = read_csv(file_path)
 
@@ -94,7 +102,7 @@ def main():
                 # We need to view and verify this role
                 print("\n", row)
                 webbrowser.open(f"http://{url}", new=0, autoraise=True)
-                response = prompt_rec("Is this relevant?", ('y', 'n', 'x'))
+                response = prompt_for_char("Is this relevant?", ('y', 'n', 'x'))
                 if response == 'x':
                     # fall out of loop to exit and save
                     break
