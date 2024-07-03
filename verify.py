@@ -2,39 +2,77 @@
 import csv
 import sys
 import webbrowser
+import sys
+import tty
+import termios
 
-def rec_prompt(prompt):
-    val = input(f"{prompt} (y/n): ")
-    if val not in ('y', 'n'):
-        return rec_prompt(prompt)
-    return val == "y"
+
+def getch():
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(sys.stdin.fileno())
+        ch = sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return ch
+
+
+def prompt_rec(prompt: str, options=('y','n')):
+    """Prompt for a single character of input and return the value once entered
+    """
+    sys.stdout.write(f"{prompt} ({'/'.join(options)}): ")
+    value = getch()
+    sys.stdout.write(f"{value}\n")
+
+    if value not in options:
+        return prompt_rec(prompt, options)
+
+    return value
+
+
+def read_csv(file_path):
+    rows = []
+    with open(file_path, 'r') as fp:
+        reader = csv.reader(fp)
+        header = reader.__next__()
+
+        for row in reader:
+            rows.append(row)
+    return header, rows
+
+
+def write_csv(file_path, out_header, out_rows):
+    with open(file_path, 'w') as fp:
+        writer = csv.writer(fp)
+        writer.writerow(out_header)
+        for row in out_rows:
+            writer.writerow(row)
+
 
 def main():
-    inpath = sys.argv[1]
-    outpath = sys.argv[2]
-    in_rows = []
-    out_rows = []
+    if len(sys.argv) < 2:
+        print("please give the path of the csv file to verify")
+        sys.exit(1)
+
+    file_path = sys.argv[1]
+
+    in_header, in_rows = read_csv(file_path)
+
+    verified_col_name = 'verified'
     initialized_file = False
-    verified_col = 'verified'
+    if in_header[-1] == verified_col_name:
+        # file previously used for verification
+        initialized_file = True
 
-    verified_urls = set()
-    not_verified_urls = set()
-
-    # read the file into rows
-    with open(inpath, 'r') as fp:
-        reader = csv.reader(fp)
-
-        header = reader.__next__()
-        if header[-1] == verified_col:
-            initialized_file = True
-        url_offset = header.index("URL")
-
-        out_rows = []
-        for row in reader:
-            in_rows.append(row)
+    # discover the url column offset
+    url_offset = in_header.index("URL")
 
     try:
         # Make a decision on each of the rows
+        verified_urls = set()
+        not_verified_urls = set()
+        out_rows = []
         for row in in_rows:
             url = row[url_offset]
 
@@ -52,9 +90,13 @@ def main():
                 verified = False
             else:
                 # We need to view and verify this role
-                print(row)
+                print("\n", row)
                 webbrowser.open(f"http://{url}", new=0, autoraise=True)
-                verified = rec_prompt("Is this relevant?")
+                response = prompt_rec("Is this relevant?", ('y', 'n', 'x'))
+                if response == 'x':
+                    print(f"\nsaving decisions and exiting...")
+                    break
+                verified = response == 'y'
 
             if initialized_file:
                 # need to write into cell for our decision
@@ -71,22 +113,23 @@ def main():
 
             out_rows.append(row)
     except KeyboardInterrupt:
-        print("writing decisions and exiting...")
+        print(f"\nsaving decisions and exiting...")
 
-    # Write the output csv
-    out_header = header
+    # generate the output header
+    out_header = in_header
     if not initialized_file:
-        out_header += [verified_col]
-    with open(outpath, 'w') as fp:
-        writer = csv.writer(fp)
-        writer.writerow(out_header)
-        for row in out_rows:
-            writer.writerow(row)
-        for row in in_rows[len(out_rows):]:
-            if initialized_file:
-                writer.writerow(row)
-            else:
-                writer.writerow(row + [''])
+        out_header += [verified_col_name]
+
+    # buffer the output rows with those not yet processed
+    verified_count = len(out_rows)
+    for row in in_rows[verified_count:]:
+        if initialized_file:
+            out_rows.append(row)
+        else:
+            out_rows.append(row + [''])
+
+    write_csv(file_path, out_header, out_rows)
+
 
 if __name__ == '__main__':
     main()
