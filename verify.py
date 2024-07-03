@@ -22,6 +22,7 @@ def prompt_rec(prompt: str, options=('y','n')):
     """Prompt for a single character of input and return the value once entered
     """
     sys.stdout.write(f"{prompt} ({'/'.join(options)}): ")
+    sys.stdout.flush()
     value = getch()
     sys.stdout.write(f"{value}\n")
 
@@ -52,7 +53,7 @@ def write_csv(file_path, out_header, out_rows):
 
 def main():
     if len(sys.argv) < 2:
-        print("please give the path of the csv file to verify")
+        print("Please give the path of the csv file to verify")
         sys.exit(1)
 
     file_path = sys.argv[1]
@@ -63,6 +64,7 @@ def main():
     initialized_file = False
     if in_header[-1] == verified_col_name:
         # file previously used for verification
+        print("Resuming verification where we left off...")
         initialized_file = True
 
     # discover the url column offset
@@ -94,7 +96,7 @@ def main():
                 webbrowser.open(f"http://{url}", new=0, autoraise=True)
                 response = prompt_rec("Is this relevant?", ('y', 'n', 'x'))
                 if response == 'x':
-                    print(f"\nsaving decisions and exiting...")
+                    # fall out of loop to exit and save
                     break
                 verified = response == 'y'
 
@@ -113,7 +115,9 @@ def main():
 
             out_rows.append(row)
     except KeyboardInterrupt:
-        print(f"\nsaving decisions and exiting...")
+        pass
+
+    print(f"\nSaving decisions and exiting...")
 
     # generate the output header
     out_header = in_header
